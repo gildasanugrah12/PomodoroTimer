@@ -22,12 +22,6 @@ function App() {
   });
 
   const intervalRef = useRef<number | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    // Create audio notification
-    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuAzPLaizsIHGm98OihUhELTKXh8bllHAU2jdXzzn0vBSd6yO/glEILEl+16+ytWBQLSKHe8sFuJAUuhM/z3I4+CRxqvvHroVMSC02m4PO8aB8GM4/T8tGAMQYjd8jv4JVEDBJhtuvwrVkUDEmi3vLEcSYGLoTP8t2RQAocbMDy7qNWEwxPpuH0wWsiBjaP1PLSgjIHI3fI7+CWRQwSYrbs8K5aFAxLo97yxnMoBi+Ez/PflUQMHG7C8vCmWRUNUKjh9MNtJAc4kdXy1IU1ByR5yPDhmEcOE2O48PKwXRYNTqPe88p3KwcwhNDz4JlIDh1wyPPyqV4XDlKq4/TGcSYIOJLX8tiIOQkkesrw5JtJDxVlu/P0s2EYDlGl3/POey4HMobQ8+GbSg8ecsnz9K1gGBBUq+T1yHUpCTqT2PTaizwKJXzM8Oaeb + ...');
-  }, []);
 
   useEffect(() => {
     if (isRunning && timeLeft > 0) {
@@ -64,8 +58,28 @@ function App() {
   };
 
   const playNotification = () => {
-    if (audioRef.current) {
-      audioRef.current.play().catch(() => {});
+    try {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      
+      const audioCtx = new AudioContextClass();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(800, audioCtx.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.5);
+
+      gainNode.gain.setValueAtTime(1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.5);
+    } catch (e) {
+      console.log('Audio playback failed', e);
     }
   };
 
@@ -108,7 +122,20 @@ function App() {
   const updateSettings = (newSettings: TimerSettings) => {
     setSettings(newSettings);
     setShowSettings(false);
-    resetTimer();
+    
+    // Update the timer immediately with the new settings
+    setIsRunning(false);
+    switch (mode) {
+      case 'focus':
+        setTimeLeft(newSettings.focus * 60);
+        break;
+      case 'break':
+        setTimeLeft(newSettings.break * 60);
+        break;
+      case 'longBreak':
+        setTimeLeft(newSettings.longBreak * 60);
+        break;
+    }
   };
 
   const formatTime = (seconds: number) => {
